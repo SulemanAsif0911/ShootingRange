@@ -76,10 +76,10 @@ const WEAPONS = [
   },
   {
     id:'rifle', name:'M16A2', type:'burst', asset:'rifle',
-    damage:30, magSize:30, fireRateMs:100, burstCount:3, burstGapMs:340, reloadFallbackMs:2000,
+    damage:30, magSize:30, fireRateMs:110, burstCount:3, burstGapMs:75, reloadFallbackMs:2000,
     recoil:0.032, spread:0.012, price:'Standard Issue',
-    desc:'3-round burst service rifle. Balanced, disciplined, dependable.',
-    stats:{damage:55,firerate:60,accuracy:72,handling:75},
+    desc:'3-round burst service rifle at true cyclic rate — fast, tight bursts.',
+    stats:{damage:55,firerate:80,accuracy:72,handling:75},
     offset:{pos:[0.47,-0.81,-0.71], rot:[0,0.06,0], scale:2.82},
     soundFire:'M16 AUD.mp4', soundReload:'M16 Reload AUD.mp4', soundEmpty:'Empty Click AUD.mp4'
   },
@@ -125,7 +125,7 @@ let renderer, scene, camera, clock;
 let yawObject, pitchObject, weaponMount;
 let pointerLocked = false;
 let scoped = false;
-let boundary = {xMin:-6.2,xMax:6.2,zMin:-6.6,zMax:-0.95};
+let boundary = {xMin:-7.6,xMax:7.6,zMin:-7.6,zMax:-3.7}; // measured directly from the range model: side walls at |x|~8.4, booth divider/counter front edge at z~-3.5
 const keys = {};
 let velocity = new THREE.Vector3();
 let mouseSensitivity = 1.2;
