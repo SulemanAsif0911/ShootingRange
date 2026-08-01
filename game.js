@@ -89,7 +89,7 @@ const WEAPONS = [
     recoil:0.13, spread:0.001, scoped:true, zoomFov:20, price:'Precision',
     desc:'Bolt-action, one shot at a time. Right-click to scope in for pinpoint precision.',
     stats:{damage:100,firerate:12,accuracy:98,handling:40},
-    offset:{pos:[0.35,-0.33,-0.40], rot:[0,-0.44,0], scale:1.16},
+    offset:{pos:[0.30,-0.38,-0.50], rot:[0,-0.18,0], scale:1.46},
     soundFire:'L96A1 AUD.mp4', soundReload:'L96A1 Reload AUD.mp4', soundBolt:'Bolt Cycle AUD.mp4'
   }
 ];
@@ -97,7 +97,8 @@ const WEAPONS = [
 /* ---------------------------------------------------------------------
    2. LEVEL CONFIG (progressive difficulty)
 --------------------------------------------------------------------- */
-const LANES_X = [-6.2,-3.7,-1.2,1.2,3.7,6.2];
+const LANES_X = [-7.485,-5.822,-4.159,-2.496,-0.833,0.830,2.493,4.156,5.820,7.482]; // real per-lane station positions, extracted from the range model geometry
+const TARGET_Z = 7.29; // real depth of the target stations, extracted from the range model geometry
 const LEVELS = [
   { id:1, name:'Drill 01 — Fundamentals', desc:'Static targets, no clock. Learn your sight picture.',
     timeLimit:9999, targetCount:8, exposureMs:9999, spawnGapMs:1400, moving:false, simultaneous:1 },
@@ -124,7 +125,7 @@ let renderer, scene, camera, clock;
 let yawObject, pitchObject, weaponMount;
 let pointerLocked = false;
 let scoped = false;
-let boundary = {xMin:-6.2,xMax:6.2,zMin:-6.6,zMax:-0.4};
+let boundary = {xMin:-6.2,xMax:6.2,zMin:-6.6,zMax:-0.95};
 const keys = {};
 let velocity = new THREE.Vector3();
 let mouseSensitivity = 1.2;
@@ -139,6 +140,7 @@ let currentWeaponObj = null; // instanced THREE.Object3D in weaponMount
 let ammoInMag = 0;
 let isReloading = false;
 let reloadEndsAt = 0;
+let reloadStartAt = 0;
 let lastFireAt = 0;
 let burstInProgress = false;
 let pumpLocked = false;
@@ -341,8 +343,9 @@ function equipWeapon(id){
 function startReload(){
   if(isReloading || ammoInMag === currentWeapon.magSize) return;
   isReloading = true;
+  reloadStartAt = performance.now();
   const dur = currentWeaponObj.userData.reloadDurationMs;
-  reloadEndsAt = performance.now() + dur;
+  reloadEndsAt = reloadStartAt + dur;
   SoundBank.play(currentWeapon.soundReload, 0.8);
   const action = currentWeaponObj.userData.reloadAction;
   if(action){
@@ -352,6 +355,28 @@ function startReload(){
   }
   $('reloadBar').classList.add('active');
   showCenterMsg('RELOADING', 400);
+}
+
+function updateReloadAnim(now){
+  if(!currentWeaponObj || !currentWeapon || !isReloading) return;
+  const off = currentWeapon.offset;
+  const dur = currentWeaponObj.userData.reloadDurationMs;
+  const t = clamp((now - reloadStartAt)/dur, 0, 1);
+  // rises to a peak dip, holds briefly, eases back to the exact ready pose by t=0.92
+  const eased = t<0.92 ? Math.sin(Math.PI*(t/0.92)) : 0;
+  const heavy = (currentWeapon.type==='bolt' || currentWeapon.type==='pump'); // bigger, slower motion for manually-cycled actions
+  const dipY = heavy ? 0.24 : 0.15;
+  const tiltX = heavy ? 0.42 : 0.30;
+  currentWeaponObj.position.set(
+    off.pos[0] + eased*0.05,
+    off.pos[1] - eased*dipY,
+    off.pos[2] + eased*0.05
+  );
+  currentWeaponObj.rotation.set(
+    off.rot[0] + eased*tiltX,
+    off.rot[1],
+    off.rot[2] + eased*0.16
+  );
 }
 
 function finishReloadIfDue(now){
@@ -534,7 +559,7 @@ function makeTargetInstance(){
 function spawnTarget(){
   const laneIdx = Math.floor(rand(0, LANES_X.length));
   const x = LANES_X[laneIdx];
-  const z = 7.6;
+  const z = TARGET_Z;
   const obj = makeTargetInstance();
   obj.position.set(x, -1.8, z); // starts hidden below "window"
   obj.userData.baseX = x;
@@ -691,13 +716,18 @@ function exitPointerLock(){
   if(document.pointerLockElement) document.exitPointerLock();
 }
 
+let ignoreNextMouseMove = false;
 document.addEventListener('pointerlockchange', function(){
   pointerLocked = (document.pointerLockElement === $('gamecanvas'));
+  if(pointerLocked) ignoreNextMouseMove = true; // first event after lock is often a spurious large jump
 });
 
 function onMouseMove(e){
   if(!pointerLocked || !levelRunning) return;
-  const dx = e.movementX||0, dy = e.movementY||0;
+  if(ignoreNextMouseMove){ ignoreNextMouseMove = false; return; }
+  const MAX_DELTA = 80; // clamp erratic/spurious large deltas some browsers report
+  const dx = clamp(e.movementX||0, -MAX_DELTA, MAX_DELTA);
+  const dy = clamp(e.movementY||0, -MAX_DELTA, MAX_DELTA);
   const s = 0.0022*mouseSensitivity;
   yawObject.rotation.y -= dx*s;
   pitchObject.rotation.x -= dy*s;
@@ -852,6 +882,7 @@ function animate(){
     updateRecoilRecover(dt);
     updateWeaponSway(dt, now);
     updateMuzzleFlash(now);
+    updateReloadAnim(now);
     finishReloadIfDue(now);
 
     if(mouseDown && currentWeapon.type==='auto') tryFire();
@@ -982,7 +1013,10 @@ function wireUI(){
   });
   $('btnResToLevels').addEventListener('click', function(){ buildLevelsUI(); showScreen('levels'); });
 
-  $('sensSlider').addEventListener('input', function(e){ mouseSensitivity = parseFloat(e.target.value); });
+  $('sensSlider').addEventListener('input', function(e){
+    mouseSensitivity = parseFloat(e.target.value);
+    $('sensVal').textContent = mouseSensitivity.toFixed(2);
+  });
 
   // debug panel wiring
   ['dpx','dpy','dpz','dry','dsc'].forEach(function(id){

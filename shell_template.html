@@ -153,6 +153,15 @@ canvas#gamecanvas{position:absolute; inset:0; width:100%; height:100%; display:b
 #pauseMenu{position:absolute; inset:0; background:rgba(6,8,5,.88); z-index:20; display:none; align-items:center; justify-content:center; flex-direction:column;}
 #pauseMenu.active{display:flex;}
 #pauseMenu .panel{background:var(--bg-panel); border:1px solid var(--line); padding:36px 44px; width:min(340px,86vw);}
+#pauseMenu .pause-panel{width:min(560px,92vw);}
+#pauseMenu .pause-cols{display:flex; gap:36px; margin-top:6px;}
+#pauseMenu .pause-col{flex:1; min-width:0;}
+#pauseMenu .pause-sub{font-family:var(--font-mono); font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--amber); margin-bottom:14px;}
+#pauseMenu .sens-val{font-family:var(--font-mono); color:var(--cyan); font-size:12px; width:38px; text-align:right;}
+.ctrl-row{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); font-size:13px;}
+.ctrl-row span{color:var(--ink-dim);}
+.ctrl-row b{font-family:var(--font-mono); color:var(--ink); background:var(--bg-panel-2); border:1px solid var(--line); padding:2px 8px; font-size:11px; letter-spacing:.05em;}
+@media (max-width:560px){ #pauseMenu .pause-cols{flex-direction:column; gap:20px;} }
 #pauseMenu h2{font-family:var(--font-display); font-size:22px; margin-bottom:20px; letter-spacing:.05em;}
 .sens-row{display:flex; align-items:center; gap:10px; margin:16px 0; font-family:var(--font-mono); font-size:11px; color:var(--ink-dim);}
 .sens-row input[type=range]{flex:1; accent-color:var(--amber);}
@@ -177,6 +186,13 @@ canvas#gamecanvas{position:absolute; inset:0; width:100%; height:100%; display:b
 .crosshair-hidden{display:none !important;}
 ::-webkit-scrollbar{width:6px;}
 ::-webkit-scrollbar-thumb{background:var(--line);}
+
+#fatalError{position:fixed; inset:0; background:#0a0c0a; color:#e8e6df; z-index:999; display:none; align-items:center; justify-content:center; padding:40px; font-family:'Share Tech Mono',monospace;}
+#fatalError.show{display:flex;}
+#fatalError .box{max-width:640px; border:1px solid #e6483c; padding:28px 32px; background:#12160f;}
+#fatalError h2{color:#e6483c; font-family:'Titillium Web',sans-serif; margin-bottom:12px; letter-spacing:.05em;}
+#fatalError pre{white-space:pre-wrap; word-break:break-word; font-size:12px; color:#93998c; max-height:240px; overflow:auto;}
+
 </style>
 </head>
 <body>
@@ -258,12 +274,27 @@ canvas#gamecanvas{position:absolute; inset:0; width:100%; height:100%; display:b
 
   <!-- PAUSE -->
   <div id="pauseMenu">
-    <div class="panel bracket-frame"><span class="bl"></span><span class="br"></span>
+    <div class="panel bracket-frame pause-panel"><span class="bl"></span><span class="br"></span>
       <h2>Paused</h2>
-      <div class="sens-row"><span>SENS</span><input type="range" id="sensSlider" min="0.5" max="3" step="0.05" value="1.2"></div>
-      <button class="btn primary" id="btnResume">Resume</button>
-      <div style="height:10px"></div>
-      <button class="btn" id="btnQuitLevel">Exit Drill</button>
+      <div class="pause-cols">
+        <div class="pause-col">
+          <div class="pause-sub">Sensitivity</div>
+          <div class="sens-row"><span>SENS</span><input type="range" id="sensSlider" min="0.2" max="3" step="0.05" value="1.2"><span id="sensVal" class="sens-val">1.20</span></div>
+          <div style="height:18px"></div>
+          <button class="btn primary" id="btnResume">Resume</button>
+          <div style="height:10px"></div>
+          <button class="btn" id="btnQuitLevel">Exit Drill</button>
+        </div>
+        <div class="pause-col">
+          <div class="pause-sub">Controls</div>
+          <div class="ctrl-row"><span>Move</span><b>W A S D</b></div>
+          <div class="ctrl-row"><span>Look</span><b>Mouse</b></div>
+          <div class="ctrl-row"><span>Fire</span><b>Left Click</b></div>
+          <div class="ctrl-row"><span>Aim / Scope</span><b>Right Click</b></div>
+          <div class="ctrl-row"><span>Reload</span><b>R</b></div>
+          <div class="ctrl-row"><span>Pause</span><b>Esc</b></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -295,10 +326,35 @@ canvas#gamecanvas{position:absolute; inset:0; width:100%; height:100%; display:b
     <label>Scale <span class="dbg-val" id="dvsc">1</span><input type="range" id="dsc" min="0.05" max="5" step="0.01"></label>
     <div style="margin-top:10px; color:var(--ink-dim)">Press ` to toggle · logs config to console</div>
   </div>
+
+  <!-- FATAL ERROR OVERLAY -->
+  <div id="fatalError">
+    <div class="box">
+      <h2>APEX RANGE failed to start</h2>
+      <div>Something in this browser blocked the game from loading. Details below.</div>
+      <pre id="fatalErrorMsg"></pre>
+    </div>
+  </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+window.addEventListener('error', function(e){
+  try{
+    var el = document.getElementById('fatalError');
+    var msg = document.getElementById('fatalErrorMsg');
+    if(el && msg){
+      msg.textContent += (e.message||'Unknown error') + '\n  at ' + (e.filename||'') + ':' + (e.lineno||'') + '\n';
+      el.classList.add('show');
+    }
+  }catch(err){}
+});
+</script>
+<script>
+__THREE_CORE__
+</script>
+<script>
+__GLTF_LOADER__
+</script>
 <script>
 __MESHOPT_DECODER__
 </script>
