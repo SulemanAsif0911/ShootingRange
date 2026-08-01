@@ -53,7 +53,7 @@ const WEAPONS = [
     recoil:0.028, spread:0.006, price:'Sidearm',
     desc:'Compact semi-auto sidearm. Low recoil, tight groups at close range.',
     stats:{damage:35,firerate:45,accuracy:70,handling:90},
-    offset:{pos:[0.26,-0.28,-0.55], rot:[0,0,0], scale:1.6},
+    offset:{pos:[0.62,-0.90,-0.29], rot:[0,-0.12,0], scale:4.29},
     soundFire:'Makarov AUD.mp4', soundReload:'Makarov Reload AUD.mp4', soundEmpty:'Empty Click AUD.mp4'
   },
   {
@@ -80,7 +80,7 @@ const WEAPONS = [
     recoil:0.032, spread:0.012, price:'Standard Issue',
     desc:'3-round burst service rifle. Balanced, disciplined, dependable.',
     stats:{damage:55,firerate:60,accuracy:72,handling:75},
-    offset:{pos:[0.24,-0.26,-0.62], rot:[0,0,0], scale:1.3},
+    offset:{pos:[0.47,-0.81,-0.71], rot:[0,0.06,0], scale:2.82},
     soundFire:'M16 AUD.mp4', soundReload:'M16 Reload AUD.mp4', soundEmpty:'Empty Click AUD.mp4'
   },
   {
@@ -89,7 +89,7 @@ const WEAPONS = [
     recoil:0.13, spread:0.001, scoped:true, zoomFov:20, price:'Precision',
     desc:'Bolt-action, one shot at a time. Right-click to scope in for pinpoint precision.',
     stats:{damage:100,firerate:12,accuracy:98,handling:40},
-    offset:{pos:[0.2,-0.24,-0.72], rot:[0,0,0], scale:1.25},
+    offset:{pos:[0.35,-0.33,-0.40], rot:[0,-0.44,0], scale:1.16},
     soundFire:'L96A1 AUD.mp4', soundReload:'L96A1 Reload AUD.mp4', soundBolt:'Bolt Cycle AUD.mp4'
   }
 ];
@@ -302,7 +302,8 @@ function equipWeapon(id){
   const src = gunModels[currentWeapon.asset];
   let obj;
   if(src && src.scene){
-    obj = src.scene.clone(true);
+    obj = src.scene; // reuse directly — only one weapon is ever mounted at a time,
+                      // and cloning skinned meshes with a plain clone() breaks skeleton bindings
   } else {
     // fallback placeholder box gun so the game never hard-errors
     obj = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.12,0.55), new THREE.MeshStandardMaterial({color:0x1c1c1c}));
@@ -510,7 +511,7 @@ function makeTargetInstance(){
   let obj;
   if(targetTemplate && targetTemplate.scene){
     obj = targetTemplate.scene.clone(true);
-    obj.scale.setScalar(0.27);
+    obj.scale.set(-0.27, 0.27, 0.27); // negative X = horizontal mirror
   } else {
     obj = new THREE.Mesh(new THREE.BoxGeometry(0.9,1.8,0.15), new THREE.MeshStandardMaterial({color:0x3a3f33}));
   }
