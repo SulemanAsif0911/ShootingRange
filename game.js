@@ -53,7 +53,7 @@ const WEAPONS = [
     recoil:0.028, spread:0.006, price:'Sidearm',
     desc:'Compact semi-auto sidearm. Low recoil, tight groups at close range.',
     stats:{damage:35,firerate:45,accuracy:70,handling:90},
-    offset:{pos:[0.26,-0.28,-0.55], rot:[0,Math.PI,0], scale:1.6},
+    offset:{pos:[0.26,-0.28,-0.55], rot:[0,0,0], scale:1.6},
     soundFire:'Makarov AUD.mp4', soundReload:'Makarov Reload AUD.mp4', soundEmpty:'Empty Click AUD.mp4'
   },
   {
@@ -62,7 +62,7 @@ const WEAPONS = [
     recoil:0.02, spread:0.02, price:'Close Quarters',
     desc:'Twin machine pistols. Devastating fire rate, wide spread — control your bursts.',
     stats:{damage:28,firerate:98,accuracy:35,handling:60},
-    offset:{pos:[0.15,-0.32,-0.5], rot:[0,Math.PI,0], scale:1.0},
+    offset:{pos:[0.15,-0.32,-0.5], rot:[0,0,0], scale:1.0},
     soundFire:'MAC10 AUD.mp4', soundReload:'MAC10 Reload AUD.mp4', soundEmpty:'Empty Click AUD.mp4'
   },
   {
@@ -71,7 +71,7 @@ const WEAPONS = [
     recoil:0.09, spread:0.05, pellets:6, price:'Heavy Hitter',
     desc:'Pump-action, devastating up close. Cycle the action between every shot.',
     stats:{damage:95,firerate:20,accuracy:40,handling:55},
-    offset:{pos:[0.22,-0.3,-0.6], rot:[0,Math.PI,0], scale:1.15},
+    offset:{pos:[0.12,-0.24,-0.10], rot:[0,0,0], scale:1.16},
     soundFire:'Remington870 AUD.mp4', soundReload:'Remington870 Reload AUD.mp4', soundEmpty:'Empty Click AUD.mp4', soundPump:'Shotgun Pump AUD.mp4'
   },
   {
@@ -80,7 +80,7 @@ const WEAPONS = [
     recoil:0.032, spread:0.012, price:'Standard Issue',
     desc:'3-round burst service rifle. Balanced, disciplined, dependable.',
     stats:{damage:55,firerate:60,accuracy:72,handling:75},
-    offset:{pos:[0.24,-0.26,-0.62], rot:[0,Math.PI,0], scale:1.3},
+    offset:{pos:[0.24,-0.26,-0.62], rot:[0,0,0], scale:1.3},
     soundFire:'M16 AUD.mp4', soundReload:'M16 Reload AUD.mp4', soundEmpty:'Empty Click AUD.mp4'
   },
   {
@@ -89,7 +89,7 @@ const WEAPONS = [
     recoil:0.13, spread:0.001, scoped:true, zoomFov:20, price:'Precision',
     desc:'Bolt-action, one shot at a time. Right-click to scope in for pinpoint precision.',
     stats:{damage:100,firerate:12,accuracy:98,handling:40},
-    offset:{pos:[0.2,-0.24,-0.72], rot:[0,Math.PI,0], scale:1.25},
+    offset:{pos:[0.2,-0.24,-0.72], rot:[0,0,0], scale:1.25},
     soundFire:'L96A1 AUD.mp4', soundReload:'L96A1 Reload AUD.mp4', soundBolt:'Bolt Cycle AUD.mp4'
   }
 ];
@@ -124,7 +124,7 @@ let renderer, scene, camera, clock;
 let yawObject, pitchObject, weaponMount;
 let pointerLocked = false;
 let scoped = false;
-let boundary = {xMin:-6.6,xMax:6.6,zMin:-2.6,zMax:6.6};
+let boundary = {xMin:-6.6,xMax:6.6,zMin:-6.6,zMax:2.6};
 const keys = {};
 let velocity = new THREE.Vector3();
 let mouseSensitivity = 1.2;
@@ -186,7 +186,8 @@ function initThree(){
   pitchObject = new THREE.Object3D();
   pitchObject.add(camera);
   yawObject = new THREE.Object3D();
-  yawObject.position.set(0, 1.72, 5.4);
+  yawObject.position.set(0, 1.72, -5.4);
+  yawObject.rotation.y = Math.PI; // face +Z, toward the target end
   yawObject.add(pitchObject);
   scene.add(yawObject);
 
@@ -254,9 +255,6 @@ function loadAssets(cb){
             if(o.isMesh){
               o.castShadow = true;
               o.receiveShadow = true;
-              if(o.material){
-                o.material.side = THREE.FrontSide;
-              }
             }
           });
         }catch(e){}
@@ -512,6 +510,7 @@ function makeTargetInstance(){
   let obj;
   if(targetTemplate && targetTemplate.scene){
     obj = targetTemplate.scene.clone(true);
+    obj.scale.setScalar(0.27);
   } else {
     obj = new THREE.Mesh(new THREE.BoxGeometry(0.9,1.8,0.15), new THREE.MeshStandardMaterial({color:0x3a3f33}));
   }
@@ -522,7 +521,7 @@ function makeTargetInstance(){
 function spawnTarget(){
   const laneIdx = Math.floor(rand(0, LANES_X.length));
   const x = LANES_X[laneIdx];
-  const z = -7.6;
+  const z = 7.6;
   const obj = makeTargetInstance();
   obj.position.set(x, -1.8, z); // starts hidden below "window"
   obj.userData.baseX = x;
@@ -697,20 +696,21 @@ function updateMovement(dt){
   const accel = 22;
   const damping = Math.pow(0.0015, dt);
 
-  let ix=0, iz=0;
-  if(keys['KeyW']) iz -= 1;
-  if(keys['KeyS']) iz += 1;
-  if(keys['KeyA']) ix -= 1;
-  if(keys['KeyD']) ix += 1;
-  const len = Math.hypot(ix,iz);
-  if(len>0){ ix/=len; iz/=len; }
+  let moveForward=0, moveRight=0;
+  if(keys['KeyW']) moveForward += 1;
+  if(keys['KeyS']) moveForward -= 1;
+  if(keys['KeyD']) moveRight += 1;
+  if(keys['KeyA']) moveRight -= 1;
+  const len = Math.hypot(moveForward,moveRight);
+  if(len>0){ moveForward/=len; moveRight/=len; }
 
-  const forward = new THREE.Vector3(Math.sin(yawObject.rotation.y), 0, Math.cos(yawObject.rotation.y));
-  const right = new THREE.Vector3(Math.sin(yawObject.rotation.y+Math.PI/2), 0, Math.cos(yawObject.rotation.y+Math.PI/2));
+  const yaw = yawObject.rotation.y;
+  const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+  const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
 
   const wish = new THREE.Vector3();
-  wish.addScaledVector(forward, -iz);
-  wish.addScaledVector(right, ix);
+  wish.addScaledVector(forward, moveForward);
+  wish.addScaledVector(right, moveRight);
   if(wish.lengthSq()>0) wish.normalize().multiplyScalar(speed);
 
   velocity.x = lerp(velocity.x, wish.x, 1-Math.pow(0.0008, dt));
@@ -737,7 +737,7 @@ function updateRecoilRecover(dt){
   recoilPitch = lerp(recoilPitch, 0, 1-Math.pow(0.001, dt));
   recoilYaw = lerp(recoilYaw, 0, 1-Math.pow(0.001, dt));
   recoilKick = lerp(recoilKick, 0, 1-Math.pow(0.0005, dt));
-  pitchObject.rotation.x -= recoilPitch*dt*6;
+  pitchObject.rotation.x += recoilPitch*dt*6;
   yawObject.rotation.y += recoilYaw*dt*6;
   if(weaponMount) weaponMount.position.z = recoilKick*0.5;
 }
@@ -1004,22 +1004,41 @@ function boot(){
   initThree();
   bindInput();
   wireUI();
-  loadAssets(function(){
-    buildScene();
-    equipWeapon(State.selectedWeapon);
-    assetsLoaded = true;
-    bootLog('ready.', 100);
+  // yield one frame so the boot screen actually paints before the heavy
+  // synchronous base64-decode + GLTF parse work blocks the main thread
+  requestAnimationFrame(function(){
     setTimeout(function(){
-      showScreen('menu');
-    }, 300);
+      loadAssets(function(){
+        buildScene();
+        equipWeapon(State.selectedWeapon);
+        assetsLoaded = true;
+        bootLog('ready.', 100);
+        setTimeout(function(){
+          showScreen('menu');
+        }, 300);
+      });
+      animate();
+    }, 30);
   });
-  animate();
+}
+
+function bootSafe(){
+  try{
+    boot();
+  }catch(e){
+    console.error('Fatal boot error', e);
+    try{
+      const el = document.getElementById('fatalError');
+      const msg = document.getElementById('fatalErrorMsg');
+      if(el && msg){ msg.textContent += (e.message||e)+'\n'+(e.stack||''); el.classList.add('show'); }
+    }catch(e2){}
+  }
 }
 
 if(document.readyState === 'loading'){
-  document.addEventListener('DOMContentLoaded', boot);
+  document.addEventListener('DOMContentLoaded', bootSafe);
 } else {
-  boot();
+  bootSafe();
 }
 
 })();
