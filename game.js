@@ -124,7 +124,7 @@ let renderer, scene, camera, clock;
 let yawObject, pitchObject, weaponMount;
 let pointerLocked = false;
 let scoped = false;
-let boundary = {xMin:-6.6,xMax:6.6,zMin:-6.6,zMax:2.6};
+let boundary = {xMin:-6.2,xMax:6.2,zMin:-6.6,zMax:-0.4};
 const keys = {};
 let velocity = new THREE.Vector3();
 let mouseSensitivity = 1.2;
@@ -169,10 +169,10 @@ function bootLog(msg, pct){
 function initThree(){
   const canvas = $('gamecanvas');
   renderer = new THREE.WebGLRenderer({canvas, antialias:true, powerPreference:'high-performance'});
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,1));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   if (renderer.outputEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
@@ -200,7 +200,7 @@ function initThree(){
   const key = new THREE.DirectionalLight(0xfff2d8, 1.15);
   key.position.set(6,10,4);
   key.castShadow = true;
-  key.shadow.mapSize.set(2048,2048);
+  key.shadow.mapSize.set(1024,1024);
   key.shadow.camera.left = -14; key.shadow.camera.right = 14;
   key.shadow.camera.top = 14; key.shadow.camera.bottom = -14;
   key.shadow.camera.far = 40;
@@ -327,7 +327,7 @@ function equipWeapon(id){
     action.loop = THREE.LoopOnce;
     currentWeaponObj.userData.mixer = mixer;
     currentWeaponObj.userData.reloadAction = action;
-    currentWeaponObj.userData.reloadDurationMs = Math.max(600, clip.duration*1000);
+    currentWeaponObj.userData.reloadDurationMs = clamp(currentWeapon.reloadFallbackMs, 1200, 2800);
   }
 
   ammoInMag = currentWeapon.magSize;
@@ -429,24 +429,36 @@ function applyRecoil(){
   recoilKick = Math.min(recoilKick + 0.08, 0.35);
 }
 
+let _flashLight = null, _flashSprite = null, _flashHideAt = 0;
 function muzzleFlash(){
-  const light = new THREE.PointLight(0xffc069, 3.2, 3.2, 2);
-  light.position.set(0,0,-0.15);
-  weaponMount.add(light);
-  const geo = new THREE.PlaneGeometry(0.14,0.14);
-  const tex = getFlashTexture();
-  const mat = new THREE.MeshBasicMaterial({map:tex, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending});
-  const spr = new THREE.Mesh(geo, mat);
-  spr.position.set(0,0,-0.55);
-  spr.rotation.z = Math.random()*Math.PI;
-  if(currentWeaponObj) currentWeaponObj.add(spr);
-  setTimeout(function(){
-    weaponMount.remove(light);
-    if(currentWeaponObj) currentWeaponObj.remove(spr);
-  }, 50);
+  if(!_flashLight){
+    _flashLight = new THREE.PointLight(0xffc069, 0, 3.2, 2);
+    weaponMount.add(_flashLight);
+    const geo = new THREE.PlaneGeometry(0.14,0.14);
+    const mat = new THREE.MeshBasicMaterial({map:getFlashTexture(), transparent:true, depthWrite:false, blending:THREE.AdditiveBlending});
+    _flashSprite = new THREE.Mesh(geo, mat);
+    _flashSprite.visible = false;
+  }
+  _flashLight.position.set(0,0,-0.15);
+  _flashLight.intensity = 3.2;
+  if(currentWeaponObj && _flashSprite.parent !== currentWeaponObj){
+    if(_flashSprite.parent) _flashSprite.parent.remove(_flashSprite);
+    currentWeaponObj.add(_flashSprite);
+  }
+  _flashSprite.position.set(0,0,-0.55);
+  _flashSprite.rotation.z = Math.random()*Math.PI;
+  _flashSprite.visible = true;
+  _flashHideAt = performance.now() + 50;
 
   // tracer
   spawnTracer();
+}
+function updateMuzzleFlash(now){
+  if(_flashLight && _flashHideAt && now >= _flashHideAt){
+    _flashLight.intensity = 0;
+    _flashSprite.visible = false;
+    _flashHideAt = 0;
+  }
 }
 
 let _flashTex = null;
@@ -839,6 +851,7 @@ function animate(){
     updateMovement(dt);
     updateRecoilRecover(dt);
     updateWeaponSway(dt, now);
+    updateMuzzleFlash(now);
     finishReloadIfDue(now);
 
     if(mouseDown && currentWeapon.type==='auto') tryFire();
